@@ -1,9 +1,12 @@
-from core.translator_azureai import Translator_azure
-from core.translator_gcp import Translator_gcp
-from core.scraper import Scraper
-from core.markdown_ft import Convertmarkdown
-from core.publish_medium import MediumPublisher
+from app.translator_azureai import Translator_azure
+from app.translator_gcp import Translator_gcp
+from app.scraper import Scraper
+from app.markdown_ft import Convertmarkdown
+from app.publish_medium import MediumPublisher
 import os
+
+
+
 ## Text Translator
 
 access_token = os.getenv('MEDIUM_ACCESS_TOKEN')

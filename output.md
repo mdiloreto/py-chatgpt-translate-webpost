@@ -1,239 +1,141 @@
-# Types of Cloud Migration
+# Kubernetes networking – Part 2
 
 
-We continue with some basic theoretical content of Cloud, in this case we are going to talk about the different migration strategies. You can review the note on Cloud Computing Fundamentals – Learn Multi Cloud(s) (madsblog.net)
-![Image](https://madsblog.net/wp-content/uploads/2024/09/image-6.png)
+In the first part of this series of Posts, we were doing a basic explanation of how Networking works in Kubernetes.
 
-## Introduction
+In this second part of the Kubernetes Networking Blog Posts series, we'll be exploring the typical networking models in various Kubernetes implementations.
+![Image](https://madsblog.net/wp-content/uploads/2024/10/Portada.jpg)
 
+## Typical Kubernetes Networking Models
 
-When we start planning our migration process, we must start by determining our destination and starting point. Our starting point can be: on-premises, co-hosting, housing or from a cloud provider (cloud-to-cloud migration). Our destination will be the Cloud, from the provider we like the most.
 
-This is where we must keep in mind that our migration process must be carefully evaluated, it must involve a process of discovery and detailed analysis of our source infrastructure.
+There are different variants of the implementation of the Networking Model in Kubernetes. Any of these implementations must have the following characteristics:
 
-I recommend paying close attention to the Assessment and Discovery process, as it will lay the foundation for our migration process and allow us to be successful.
-## Engage teams
+* Each Pod must have a unique IP across the cluster. 
+* Pods must communicate with other Pods on all nodes without using NAT. 
+* Kubelet must be able to communicate with all Pods on the node.
 
 
-Migration processes are usually carried out and are the responsibility of the infrastructure team, but it is very important that this process also involves:
 
-* The technical owners of the applications (by this I mean the code). 
-* The business owners of the applications. 
-* Leadership teams and key roles.
-* Teams in charge of dependencies or integrations of the applications involved. 
 
+There are 3 types of implementations:
 
+* Fully integrated model (flat).
+* Bridge Model (Island).
+* Air-gapped model
 
-## Types of Migration
 
 
-We can classify migrations into the following types:
 
-* Rehost: lift and shift.
-* Replatform: lift and optimize.
-* Refactor: move and improve.
-* Re-architect: continue to modernize.
-* Rebuild: remove and replace, also called rip and replace.
-* Repurchase.
+These 3 implementations vary in:
 
+* As pods communicate with services outside of Kubernetes on the corporate network. 
+* As pods communicate with other clusters in the organization. 
+* If NAT is required for outbound-to-external communication. 
+* If the IPs of the Pods can be reused in another cluster of the corporate network. 
 
 
-## Rehost: Lift and Shift
 
 
-We start with the well-known "lift and move". This type of migration involves moving workloads "as-is" (as they are), making only minimal modifications so that the workloads can function optimally in the target environment.
+As you may have noticed, each of the Cloud Providres can implement one or more of these models, giving several deployment options.
+## Fully integrated model (flat).
 
-This type of migration is ideal for laying the foundations when migrating to the cloud. This allows the team to begin to see some of the benefits of being in the cloud while maintaining the same tools and skills they used in on-prem.
+![Image](https://madsblog.net/wp-content/uploads/2024/10/image-1.png)
 
-Lift and Shift is very fast and relatively simple, and all Cloud Providers have a Native tool that allows you to perform this procedure without problems and with a tool supported by the manufacturer that is capable of integrating with different Source platforms such as VMWare for VMs or directly for physical servers. Examples of these tools: GCP Migrate to Virtual Machines or Azure Migrator.
 
-Maintaining IaaS workloads in the cloud can be costly. When migrating using the Lift and Shift approach, the costs are often high because we do not take full advantage of the benefits offered by the cloud. While this model reduces responsibilities for administrators, as the cloud provider is responsible for maintaining hardware, hypervisors, networks, and more, it is not very efficient in terms of compute value versus cost. In fact, many organizations that rely heavily on IaaS end up opting for a Cloud Exit.
+One of the main advantages of this model is that Cloud Providers can tightly integrate Kubernetes deployment with Software-Defined Networks (SDNs).
 
-We must be vigilant and optimize our workloads for the Cloud.
-## Replatform: lift and optimize
+The key to the operation of this model is that the IP addresses of the pods are routed within the network where the Cluster is located. The underlying network knows which node the pods are on. This can be handled by Routes in GCP or Effective Routes in Azure.
 
+Some deployments use an isolated, separate CIDR for pods, but it's not a mandatory condition. In some implementations, the Pods take the ips from the same network where the Cluster is located.
 
-In this type of migration, it takes many more of the advantages of the core competencies of the Cloud: elasticity, redundancy, performance optimization, and security.
+In this deployment, pods do not need NAT to communicate with other applications outside the cluster.
+## Deployment in different Cloud Providers:
 
-This strategy involves more work, but it can help us improve the impact of costs.
 
-Continuing with the example of migrating a VM-based workload from on-prem to Cloud:
+* GKE uses this model with VPC-native Clusters. Services and Pods ranges are assigned as secondary ranges of the nodes' VPC. For external traffic, SNAT can be used to map the IP of the Pod to that of the node. 
+* AKS uses this model in Azure CNI and Azure CNI dynamic configurations. In Azure CNI, IPs from the same network as the Clusters are used and in Dynamic we can assign a separate Subnet in the VNET for this purpose, allowing different NSG implementations.
+* EKS uses this model when using the Amazon VPC Container Networking interface (CNI) Plugin. Allows you to assign IPs to pods directly from an address space in a VPC. This subnet can be the one where the nodes are located or a dedicated subnet. Similar to the variation in AKS.  
 
-* We could deploy Compute Engine Managed Instances on GCP or Azure Scale Sets to add scalability and elasticity to our workloads. 
 
 
+## Advantages:
 
 
-* Another example would be migrating from a MySQL database engine running on a Server to the Cloud SQL or Azure Database service. 
+* Better telemetry and debugging. 
+* Makes it easy to configure Firewall rules.
+* Better compatibility.
+* Service Mesh Support 
 
 
 
-## Refactor: move and improve
+## Disadvantages:
 
 
-With this strategy, workloads will be modified before or while they are migrated to the cloud.
+* Extensive use of IP addresses as large quantities will be needed for pods.  
+* SDN requirements: Requires very deep integration with the underlying network. Difficult to implement in Self-Managed/On-premises.
 
-Refactoring migrations allow you to take advantage of cloud features such as scalability and high availability. It is also possible to improve the architecture to increase the portability of the application.
 
-We must keep in mind that this type of migration takes longer than a rehost migration, as it is necessary to refactor the workloads.
 
-In addition, refactoring requires acquiring new skills.
+## Bridge Model (Island)
 
-Example:
+![Image](https://madsblog.net/wp-content/uploads/2024/10/image-2-1024x925.png)
 
-* Refactor Jobs to run in Cloud Functions. 
-* Migrate Compressed application from a VM to a PaaS Service such as Google Cloud Run or Azure Container Apps. 
 
+This model is commonly used On-Premises where it is not possible to make a tight integration with the underlying network. With this model, Pods can communicate with resources outside the cluster through a Gateway or Proxy. Pods within the Cluster can communicate freely.
 
+For the implementation of Proxys/Gateways there are different deployment models:
 
-## Re-architect: continue to modernize
+* Use Nodes as Gateways: SNAT is used for Outbound. For communication to the Services, the Services such as NodePort or LoadBalancer can be used. 
+* Use Proxy VMs: VMs must have two NICs, one in the network of the nodes and the other in the Enterprise Network. 
 
 
-This type of migration is comparable to Refactor's strategy, but we add a bit of complexity. In this case a re-architect is made to change how the code works. This allows the code to be optimized to be executed in the Cloud.
 
-Example:
+## Deployment in different Cloud Providers:
 
-* Refactoring a monolithic application to run on AKS or EKS as Microservices. 
 
+* GKE and EKS do not use this model. 
+* By default AKS uses this model when using Kubenet, UDRs are used for Pod-to-Pod traffic with Ip Forwarding at the level of the node NICs. For outbound traffic, SNAT is used. 
 
 
-## Rebuild: remove and replace
 
+## Advantages:
 
-In this case, we decommissioned the on-premises application and completely redesigned it from 0 in the cloud.
 
-This type of migration allows the generation of a Cloud-Native solution from the beginning since it will be designed and implemented in the context of the cloud.
+* CIDRs can be reused in other clusters, although it is a bit risky for external communication. It should be carefully planned and equally recommended to reserve a single network-wide range for pods and use this range for all clusters. 
+* Easier security: since the pods are not exposed to the rest of the network. 
 
-These rebuild migrations can take longer than rehost or refactor migrations. They are not suitable for out-of-the-box applications as they require rewriting the application. It is important to evaluate the additional time and effort to redesign it.
 
-This type of migration also requires new skills and tools to configure and deploy the app in the new environment.
-## Repurchase
 
+## Disadvantages:
 
-In this case, it is when a SaaS service is acquired as the target environment.
 
-From a resource standpoint, a buyback migration is often simpler than refactoring, rebuilding, or re-architecting. However, it can be more expensive, and you may not get the same level of granular control over your cloud environment.
+* Inaccurate telemetry and difficult debugging: traffic is only recorded with the IP of the Nodes. 
+* More difficult to configure firewalls: only the IP of the nodes can be used. 
+* Service Meshes incompatibility.
 
-For example:
 
-* If you used email or on-premises collaboration tools, moving to Microsoft 365 is a Repurchase. 
 
+## Air-gapped model
 
+![Image](https://madsblog.net/wp-content/uploads/2024/10/image-3.png)
 
-## Adoption Frameworks
 
+This model is mostly used for Clousters who do not need access to the corporate network. Only through Public APIs. In this model, the cluster cannot communicate with other resources using private IPs. Pods within the cluster can communicate freely.
 
-Each Cloud has an Adoption Framework that allows a formal framework to be given to the maturity that each organization has to migrate to the cloud. Here are the Big 3 Adoption Frameworks:
+This model is not commonly used but an isolated network can be achieved in any deployment. You only need to deploy the cluster on a separate network with no connectivity to other services on the corporate network.
+## Advantages:
 
-* Adoption Framework | Google Cloud
-* Microsoft Cloud Adoption Framework for Azure – Cloud Adoption Framework | Microsoft Learn
-* AWS Cloud Adoption Framework (amazon.com)
 
+* All internal ranks can be reused. 
+* Safety by total isolation. 
 
 
-## Common prerequisites for any migration
 
+## Disadvantages:
 
-* Assess and Discover.
-* Planning and construction. 
-* Test Cases and Pilot Tests.  
 
-
-
-## Assess and Discover
-
-
-Basically, in this stage of the migration we are going to make an inventory of all the resources to be migrated and we will determine the requirements and dependencies of each one. We must gain a Very Deep knowledge about the workloads we are going to migrate.
-
-Here we will have a great participation of all the teams involved: technical leaders, app owners, business leaders, networking, etc...
-
-It is important to detect early blockers and set expectations for stakeholders.
-
-Some of the tasks of this stage will be:
-
-* Generate an inventory.
-* Catalog applications and dependencies. 
-* Train teams.
-* Generate PoC if necessary. 
-* Calculate TCO. 
-
-
-
-
-This is how an inventory resulting from this stage can be seen:
-![Image](https://madsblog.net/wp-content/uploads/2024/09/image-1-1024x476.png)
-
-![Image](https://madsblog.net/wp-content/uploads/2024/09/image-4-1024x319.png)
-
-
-From this information we must be able to generate a categorization in terms of criticality / level of difficulty of our Workloads:
-![Image](https://madsblog.net/wp-content/uploads/2024/09/image-5-1024x651.png)
-
-## Planning and construction
-
-
-At this stage we will plan and build the foundations of our migration:
-
-* Project definitions. 
-* Project planning. 
-* Landing Zones.
-
-
-
-
-Some of the tasks we'll perform in this step include:
-
-* Agree and define action plan.
-* Assign a Timeline (or action schedule). 
-* Choose the migration strategy. 
-* Choose the migration tool(s). 
-* Build our landing zones (if necessary, as they may exist previously).
-
-
-
-
-At this stage, we must also take into account:
-
-* Resource hierarchy: Designing a proper resource structure is crucial for billing, security, and team management.
-
-
-
-
-* Identity and Access Management (IAM): Focuses on how to manage access to Google Cloud resources through users, groups, and service accounts, ensuring granular control and best security practices.
-
-
-
-
-* Connectivity and networking: It is important to plan network design, data transfer, and adjust parameters such as maximum transmission unit (MTU) to optimize performance.
-
-
-
-
-* Billing: The concepts of resource hierarchy and billing are related. It's critical to understand how resources are billed.
-
-
-
-
-* Governance: Establishing control and management strategies is vital to maintaining the security, compliance, and organization of cloud resources.
-
-
-
-
-* Security and Compliance: The management and security of systems in the United States require a clear understanding of responsibilities and threats, in addition to implementing proactive detection and monitoring practices.
-
-
-
-## Test Cases and Pilot Tests
-
-
-For each of the migrations, it is advisable to add a stage of Test Cases and Pilot Test once the migration tool has been configured. These phases will ensure the effectiveness of the process, minimizing risks and disruptions.
-
-Additionally:
-
-* Monitoring and analysis: It is crucial to monitor each migration throughout the process to obtain key metrics such as execution times, errors, or performance impacts. This will allow future processes to be adjusted and time optimized.
-* Reversal plan: Make sure you have a contingency or reversal plan in place to minimize risks in the event of possible failures during the pilot test.
-* Automation: If possible, automate part of the testing process to reduce manual intervention and ensure consistency in results.
-
+* No private communication.
 
 
 
