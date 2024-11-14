@@ -72,6 +72,8 @@ def transcribe_video():
     elif data.get("translator_api") == "google":        
         if data.get("google_app_creds") and data.get("gcp_project_id"):
             gcp_project_id = data.get("gcp_project_id")
+            
+            ### >>>>>>>> SOLVE GOOGLE_APP_CREDS ENV VARIABLE <<<<<<<
             google_app_creds = data.get("google_app_creds")
             try: 
                 for element in content:

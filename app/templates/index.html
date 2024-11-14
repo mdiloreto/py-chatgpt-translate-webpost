@@ -3,39 +3,162 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web Site Transcriptor</title>
+    <title>Transcription Service</title>
+    <style>
+        .hidden { display: none; }
+    </style>
 </head>
 <body>
-    <h1>Translate Worldpress BlogPost Content</h1>
-    <form id="transcription-form">
-        <input type="text" id="url" placeholder="Enter video URL" required>
-        <button type="submit">Scrape and Translate</button>
-    </form>
+    <h1>Configuration Prerequisites</h1>
+
+    <!-- Step 1: URL Input -->
+    <div id="step-1">
+        <label for="url">Enter Blog URL:</label>
+        <input type="text" id="url" placeholder="Enter Blog URL" required>
+        <button onclick="goToStep2()">Next</button>
+    </div>
+
+    <!-- Step 2: Translator API Dropdown -->
+    <div id="step-2" class="hidden">
+        <label for="translator_api">Select Translator API:</label>
+        <select id="translator_api" onchange="showAdditionalFields()">
+            <option value="" disabled selected>Select an option</option>
+            <option value="azure">Azure Translator</option>
+            <option value="google">Google Translator</option>
+        </select>
+        <div id="additional-fields" class="hidden">
+            <!-- Additional fields will be shown here based on selection -->
+        </div>
+        <button onclick="goToStep3()">Scrape and Translate</button>
+        <button onclick="goToStep1()">Previous</button>
+    </div>
+
     <p id="status"></p>
-    <a id="download-link" style="display:none;">Download Markdown</a>
+    <a id="download-link" style="display:none;">Download Transcription</a>
 
     <script>
-        document.getElementById('transcription-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const url = document.getElementById('url').value;
-            const response = await fetch('/api/transcribe', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url })
-            });
+        const BASE_API_URL = 'http://192.168.1.95:5000'; // Base URL for the API
+        let apiSelection = ''; // To store the selected API
+        let blogURL = '';      // To store the blog URL
+        let additionalSettings = {}; // To store any additional settings based on API
 
-            if (response.ok) {
-                const blob = await response.blob();
-                const downloadUrl = URL.createObjectURL(blob);
-                const link = document.getElementById('download-link');
-                link.href = downloadUrl;
-                link.style.display = 'block';
-                link.download = 'transcription.md';
-                link.textContent = 'Download Markdown';
-            } else {
-                document.getElementById('status').textContent = 'Transcription failed';
+        function goToStep1(){
+            document.getElementById("step-2").classList.add("hidden");
+            document.getElementById("step-1").classList.remove("hidden");
+        }
+
+        // Move to Step 2 and store the URL
+        function goToStep2() {
+            blogURL = document.getElementById("url").value;
+            document.getElementById("step-1").classList.add("hidden");
+            document.getElementById("step-2").classList.remove("hidden");
+        }
+
+        // Display additional fields based on the selected API
+        function showAdditionalFields() {
+            apiSelection = document.getElementById("translator_api").value;
+            const additionalFieldsDiv = document.getElementById("additional-fields");
+            additionalFieldsDiv.innerHTML = "";
+
+            if (apiSelection === "azure") {
+                additionalFieldsDiv.innerHTML = `
+                    <label for="azure_key">Azure API key:</label>
+                    <input type="text" id="azure_key" placeholder="Enter Azure API Key" required>
+                    
+                    <label for="azure_endpoint">Azure Endpoint:</label>
+                    <input type="text" id="azure_endpoint" placeholder="Enter Azure Endpoint" required>
+                `;
+            } else if (apiSelection === "google") {
+                additionalFieldsDiv.innerHTML = `
+                    <label for="google_key">Google API Key:</label>
+                    <input type="text" id="google_key" placeholder="Enter Google API Key" required>
+                    
+                    <label for="google_project_id">Google Project ID:</label>
+                    <input type="text" id="google_project_id" placeholder="Enter Google Project ID" required>
+                `;
             }
-        });
+            additionalFieldsDiv.classList.remove("hidden");
+        }
+
+        // Store additional settings and make API call
+        function goToStep3() {
+            if (apiSelection === "azure") {
+                additionalSettings.apiKey = document.getElementById("azure_key").value;
+                additionalSettings.endpoint = document.getElementById("azure_endpoint").value;
+            } else if (apiSelection === "google") {
+                additionalSettings.google_app_creds = document.getElementById("google_app_creds").value;
+                additionalSettings.projectId = document.getElementById("google_project_id").value;
+            }
+
+            console.log("Additional Settings:", additionalSettings); // Log saved values
+            makeAPICall();
+        }
+
+        // Function to make the API call
+        async function makeAPICall() {
+            document.getElementById('status').textContent = "Processing...";
+
+            if (apiSelection == "azure"){
+
+                try {
+                    const response = await fetch(`${BASE_API_URL}/api/transcribe`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            translator_api: apiSelection,
+                            url: blogURL,
+                            azure_endpoint: additionalSettings.endpoint,
+                            azure_key: additionalSettings.apiKey
+                        })
+                    });
+
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const downloadUrl = URL.createObjectURL(blob);
+                        const link = document.getElementById('download-link');
+                        link.href = downloadUrl;
+                        link.style.display = 'block';
+                        link.download = 'transcription.txt';
+                        link.textContent = 'Download Transcription';
+                        document.getElementById('status').textContent = 'Transcription successful!';
+                    } else {
+                        document.getElementById('status').textContent = 'Transcription failed';
+                    }
+                } catch (error) {
+                    console.error('Fetch error:', error);
+                    document.getElementById('status').textContent = 'An error occurred';
+                }
+            }
+            else if (apiSelection === "google") {
+                try {
+                    const response = await fetch(`${BASE_API_URL}/api/transcribe`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            gcp_project_id: additionalSettings.projectId,
+                            url: blogURL,
+                            google_app_creds: additionalSettings.google_app_creds
+                        })
+                    });
+
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const downloadUrl = URL.createObjectURL(blob);
+                        const link = document.getElementById('download-link');
+                        link.href = downloadUrl;
+                        link.style.display = 'block';
+                        link.download = 'transcription.txt';
+                        link.textContent = 'Download Transcription';
+                        document.getElementById('status').textContent = 'Transcription successful!';
+                    } else {
+                        document.getElementById('status').textContent = 'Transcription failed';
+                    }
+                } catch (error) {
+                    console.error('Fetch error:', error);
+                    document.getElementById('status').textContent = 'An error occurred';
+                }
+            }
+        }
     </script>
 </body>
 </html>
