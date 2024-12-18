@@ -1,25 +1,16 @@
 # syntax=docker/dockerfile:1
 
-# Comments are provided throughout this file to help you get started.
-# If you need more help, visit the Dockerfile reference guide at
-# https://docs.docker.com/go/dockerfile-reference/
+ARG PYTHON_VERSION=3.13
+FROM python:${PYTHON_VERSION}-alpine as build
 
-# Want to help us make this template better? Share your feedback here: https://forms.gle/ybq9Krt8jtBL3iCk7
-
-ARG PYTHON_VERSION=3.12.2
-FROM python:${PYTHON_VERSION}-slim as base
-
-# Prevents Python from writing pyc files.
+# Set environment variables for Python behavior
 ENV PYTHONDONTWRITEBYTECODE=1
-
-# Keeps Python from buffering stdout and stderr to avoid situations where
-# the application crashes without emitting any logs due to buffering.
 ENV PYTHONUNBUFFERED=1
 
+# Set the working directory
 WORKDIR /app
 
-# Create a non-privileged user that the app will run under.
-# See https://docs.docker.com/go/dockerfile-user-best-practices/
+# Create a non-privileged user for running the app
 ARG UID=10001
 RUN adduser \
     --disabled-password \
@@ -30,23 +21,25 @@ RUN adduser \
     --uid "${UID}" \
     appuser
 
-# Download dependencies as a separate step to take advantage of Docker's caching.
-# Leverage a cache mount to /root/.cache/pip to speed up subsequent builds.
-# Leverage a bind mount to requirements.txt to avoid having to copy them into
-# into this layer.
-RUN apt-get update && apt-get install -y ffmpeg
-RUN --mount=type=cache,target=/root/.cache/pip \
-    --mount=type=bind,source=requirements.txt,target=requirements.txt \
-    python -m pip install -r requirements.txt
+# Create the outputs directory with the right permissions
+RUN mkdir /app/outputs && chown appuser:appuser /app/outputs
 
-# Switch to the non-privileged user to run the application.
+RUN apk add --no-cache gcc musl-dev linux-headers python3-dev libffi-dev
+
+# Copy dependencies first for efficient caching
+COPY requirements.txt .
+
+# Use pip caching to speed up dependency installation
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+
+# Switch to the non-privileged user
 USER appuser
 
-# Copy the source code into the container.
+# Copy the source code
 COPY . .
 
-# Expose the port that the application listens on.
-EXPOSE 80
+# Expose the port for the application
+EXPOSE 5000
 
-# Run the application.
-CMD ["flask", "run", "--host=0.0.0.0"]
+# Run the application using Gunicorn
+ENTRYPOINT ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "--timeout", "3600", "app:app"]

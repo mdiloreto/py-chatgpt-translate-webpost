@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Translation Service</title>
+    <title>Transcription Service</title>
     <style>
         body, html {
             height: 100%;
@@ -28,7 +28,7 @@
         .banner-image {
             width: 100%;
             height: 150px;
-            background-image: url('https://madsblog.net/wp-content/uploads/2023/11/1-3.png');
+            background-image: url('https://madsblog.net/wp-content/uploads/2023/09/MadsBlog_Banner-768x171.png');
             background-size: cover;
             background-position: center;
             border-radius: 10px 10px 0 0;
@@ -91,9 +91,7 @@
 <body>
     <div class="container">
         <div class="banner-image"></div>
-        <h1>MultiClouds.Tech</h1>
-        <h2>Blog Posts Translation Service</h2>
-        <h3>Step by Step Configuration Settings</h3>
+        <h1>Configuration Prerequisites</h1>
 
         <!-- Step 1: URL Input -->
         <div id="step-1">
@@ -117,11 +115,11 @@
 
         <div id="status"></div>
         <div id="spinner" class="spinner hidden"></div>
-        <a id="download-link" class="hidden">Download Translation</a>
+        <a id="download-link" class="hidden">Download Transcription</a>
     </div>
 
     <script>
-        const BASE_API_URL = window.location.origin; // Automatically uses the current webpage's origin
+        const BASE_API_URL = 'http://192.168.1.95:5000'; 
         let apiSelection = '';
         let blogURL = '';
         let additionalSettings = {};
@@ -165,8 +163,8 @@
         function goToStep3() {
             additionalSettings = apiSelection === "azure"
                 ? {
-                    azure_credentials: document.getElementById("azure_key").value,
-                    azure_endpoint: document.getElementById("azure_endpoint").value
+                    apiKey: document.getElementById("azure_key").value,
+                    endpoint: document.getElementById("azure_endpoint").value
                 }
                 : {
                     google_app_creds: document.getElementById("google_key").value,
@@ -182,10 +180,9 @@
         async function makeAPICall() {
             toggleVisibility("spinner", true);
             document.getElementById('status').textContent = "Processing...";
-            document.getElementById('status').style.color = "black"; // Reset status color
-        
+
             try {
-                const response = await fetch(`${BASE_API_URL}/api/translate`, {
+                const response = await fetch(`${BASE_API_URL}/api/transcribe`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -194,37 +191,26 @@
                         ...additionalSettings
                     })
                 });
-        
+
                 if (response.ok) {
                     const blob = await response.blob();
                     const downloadUrl = URL.createObjectURL(blob);
                     const link = document.getElementById('download-link');
-        
-                    // Generate timestamp for the file name
-                    const timestr = new Date().toISOString().replace(/[-:.T]/g, '').slice(0, 15);
-                    const filename = `translation-${timestr}.md`;
-        
                     link.href = downloadUrl;
-                    link.download = filename; // Set dynamic filename
-                    link.textContent = `Download Translation (${filename})`;
+                    link.download = 'transcription.txt';
+                    link.textContent = 'Download Transcription';
                     toggleVisibility("download-link", true);
-                    document.getElementById('status').textContent = 'Translation successful!';
-                    document.getElementById('status').style.color = "green"; // Success color
+                    document.getElementById('status').textContent = 'Transcription successful!';
                 } else {
-                    const errorText = await response.text(); // Capture detailed error message
-                    document.getElementById('status').textContent = `Translation failed: ${errorText}`;
-                    document.getElementById('status').style.color = "red"; // Error color
+                    document.getElementById('status').textContent = 'Transcription failed';
                 }
             } catch (error) {
-                // Display the JavaScript error message
-                document.getElementById('status').textContent = `An error occurred: ${error.message}`;
-                document.getElementById('status').style.color = "red"; // Error color
-                console.error('API call error:', error); // Log error to console for debugging
+                document.getElementById('status').textContent = 'An error occurred. Please try again.';
+                console.error('API call error:', error);
             } finally {
                 toggleVisibility("spinner", false);
             }
         }
-        
     </script>
 </body>
 </html>

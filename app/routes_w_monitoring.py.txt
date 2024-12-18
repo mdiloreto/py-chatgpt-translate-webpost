@@ -7,11 +7,24 @@ from app.services.translator_gcp import Translator_gcp
 import time
 import logging
 import os 
+from azure.monitor.opentelemetry import configure_azure_monitor
+from opentelemetry import trace
+from opentelemetry.instrumentation.flask import FlaskInstrumentor
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
 
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 output_dir = os.getenv("FLASK_OUTPUT_DIR", "/app/outputs") ## Default for local tests:"/app/outputs" ||  "/home" for Linux App Service Web App
+
+InstrumentationKey = os.getenv("INSTRUMENTATION_KEY")
+configure_azure_monitor(
+    connection_string=InstrumentationKey,
+    enable_live_metrics=True
+)
+# Instrument your Flask app and HTTP requests
+FlaskInstrumentor().instrument_app(app)
+RequestsInstrumentor().instrument()
 
 @app.route('/')
 def home():
@@ -44,7 +57,7 @@ def transcribe_video():
             content = scraper.html_process()
         except Exception as e:
             logging.error(f"Error in scraper: {e}", exc_info=True)
-            return jsonify({"error": f"Error in scraper: {e}"}), 400
+            return jsonify({"error": f"Error in scraper: {e}"}), 500
 
         # Translation (Azure)
         if data.get("translator_api") == "azure":
@@ -61,7 +74,7 @@ def transcribe_video():
                             content_en.append({'type': element['type'], 'content': translated_text})
                         except Exception as e:
                             logging.error(f"Error in Azure translation: {e}", exc_info=True)
-                            return jsonify({"error": f"Error in Azure translation: {e}"}), 400
+                            return jsonify({"error": f"Error in Azure translation: {e}"}), 500
                     else:
                         content_en.append(element)  # Add images as-is
             else:
@@ -83,7 +96,7 @@ def transcribe_video():
                             content_en.append({'type': element['type'], 'content': translated_text})
                         except Exception as e:
                             logging.error(f"Error in Google translation: {e}", exc_info=True)
-                            return jsonify({"error": f"Error in Google translation: {e}"}), 400
+                            return jsonify({"error": f"Error in Google translation: {e}"}), 500
                     else:
                         content_en.append(element)  # Add images as-is
             else:
@@ -104,10 +117,10 @@ def transcribe_video():
             saved_file = converter.save_to_markdown_file(markdown_content)
         except Exception as e:
             logging.error(f"Error in Markdown formatting: {e}", exc_info=True)
-            return jsonify({"error": f"Error in Markdown formatting: {e}"}), 400
+            return jsonify({"error": f"Error in Markdown formatting: {e}"}), 500
 
         return send_file(saved_file, as_attachment=True)
 
     except Exception as e:
         logging.error(f"Unhandled exception: {e}", exc_info=True)
-        return jsonify({"error": f"An unexpected error occurred: {e}"}), 400
+        return jsonify({"error": f"An unexpected error occurred: {e}"}), 500
